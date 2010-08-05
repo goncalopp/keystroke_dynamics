@@ -1,0 +1,2 @@
+This is a python implementation of a keystoke dynamics algorith - that is, an algorithm that can be used for identification and authentication of a individual based on the way (s/he writes on the keyboard (key timings)
+It needs the X windowing system with the RECORD extension enabled
