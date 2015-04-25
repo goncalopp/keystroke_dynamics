@@ -75,32 +75,32 @@ class TimingExtractor(KeypressEventReceiver):
             dwell_time= time - self.press_time.pop(key)
             if dwell_time<self.timing_thresold:
                 self.dwell_times[key].append(dwell_time)
-                
-def signature_extractor(keydata, sample_number_thresold=10, std_dev_thresold=20):
-    signature={}
+
+def fingerprint_extractor(keydata, sample_number_thresold=10, std_dev_thresold=20):
+    fingerprint={}
     for i in range(len(keydata)):
         if (len(keydata[i])>=sample_number_thresold or sample_number_thresold==0) and (std(keydata[i])<=std_dev_thresold or std_dev_thresold==0):
-            signature[i]= (mean(keydata[i]), std(keydata[i]) ) 
-    return signature
+            fingerprint[i]= (mean(keydata[i]), std(keydata[i]) ) 
+    return fingerprint
 
-def signature_similarity(data, usersignature):
-    datasignature= signature_extractor(data, 1,0)
+def fingerprint_similarity(data, userfingerprint):
+    datafingerprint= fingerprint_extractor(data, 1,0)
     score=1
-    for key in usersignature:
+    for key in userfingerprint:
         try:
-            user_keysignature=usersignature[key]
-            data_keysignature=datasignature[key]
-            probability= key_similarity(user_keysignature, data_keysignature)
+            user_keyfingerprint=userfingerprint[key]
+            data_keyfingerprint=datafingerprint[key]
+            probability= key_similarity(user_keyfingerprint, data_keyfingerprint)
             score*= 2*probability
             
-            print 'analising key %d, mean: %f, stddev: %f, given mean: %f, probability %f'% (key,user_keysignature[0],user_keysignature[1], data_keysignature[0], probability)
+            print 'analising key %d, mean: %f, stddev: %f, given mean: %f, probability %f'% (key,user_keyfingerprint[0],user_keyfingerprint[1], data_keyfingerprint[0], probability)
         except:
-            print 'no key %d on data signature'%key
+            print 'no key %d on data fingerprint'%key
     return score
 
-def key_similarity(usersignature, datasignature):
-    stddev= usersignature[1]
-    difference= abs(usersignature[0]-datasignature[0])
+def key_similarity(userfingerprint, datafingerprint):
+    stddev= userfingerprint[1]
+    difference= abs(userfingerprint[0]-datafingerprint[0])
     return norm.cdf(-difference/stddev)
     
 
@@ -140,8 +140,8 @@ def plot(datalists):
 
 
 
-goncalo_signature=load_signature('goncalo')
-yuna_signature=load_signature('yuna')
+goncalo_fingerprint=load_fingerprint('goncalo')
+yuna_fingerprint=load_fingerprint('yuna')
 
 
 mytimingextractor=TimingExtractor(500)
@@ -159,10 +159,10 @@ capture_keys.start(testf)
 data=mytimingextractor.dwell_times
 
 
-print "analysing data with goncalo signature"
-print signature_similarity(data, goncalo_signature)
+print "analysing data with goncalo fingerprint"
+print fingerprint_similarity(data, goncalo_fingerprint)
 print 
-print "analysing data with yuna signature"
-print signature_similarity(data, yuna_signature)
+print "analysing data with yuna fingerprint"
+print fingerprint_similarity(data, yuna_fingerprint)
 print 
     
