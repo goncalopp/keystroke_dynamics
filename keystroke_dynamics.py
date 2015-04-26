@@ -110,12 +110,12 @@ class Fingerprint(VersionedSerializableClass):
         self.data= data
 
     @staticmethod
-    def create(keystroke_capture_data, sample_number_threshold=10, std_dev_threshold=20):
+    def create(keystroke_capture_data, sample_number_threshold=5, std_dev_threshold=-1):
         snt, sdt= sample_number_threshold, std_dev_threshold
-        times= keystroke_capture_data.feed(TimingExtractor(500)).dwell_times
+        times= keystroke_capture_data.feed( TimingExtractor() ).dwell_times
         data={}
         for key,key_times in enumerate(times):
-            if (len(key_times)>=snt or snt==0) and (std(key_times)<=sdt or sdt==0):
+            if (len(key_times)>=snt or snt==0) and (std(key_times)<=sdt or sdt==-1):
                 data[key]= (mean(key_times), std(key_times) ) 
         return Fingerprint(data)
     
