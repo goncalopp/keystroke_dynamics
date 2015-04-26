@@ -31,7 +31,10 @@ class VersionedSerializableClass( object ):
     
     @classmethod
     def load_from_file( cls, filename):
-        f=open(filename+cls.FILE_EXTENSION, 'rb')
+        try:
+            f= open(filename, 'rb')
+        except Exception:
+            f=open(filename+cls.FILE_EXTENSION, 'rb')
         instance= pickle.load(f)
         f.close()
 
@@ -70,7 +73,11 @@ class TimingExtractor(KeypressEventReceiver):
             self.pk=key
             
         if type==self.KEY_UP:
-            dwell_time= time - self.press_time.pop(key)
+            try:
+                dwell_time= time - self.press_time.pop(key)
+            except KeyError:
+                #can happen because we initiated capture with a key pressed down
+                return
             if dwell_time<self.timing_threshold:
                 self.dwell_times[key].append(dwell_time)
 
