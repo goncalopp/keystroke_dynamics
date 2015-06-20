@@ -33,7 +33,7 @@ class KeystrokeDynamicsFeature(object):
 
 class CompositeFeature(KeystrokeDynamicsFeature, dict):
     '''A feature composed of multiple sub-features'''
-    def __init__(self, name, subfeatures, reducer=None):
+    def __init__(self, name, subfeatures):
         '''reducer is a function. see reduce() documentation'''
         KeystrokeDynamicsFeature.__init__(self, name)
         if len(subfeatures)==0:
@@ -41,6 +41,23 @@ class CompositeFeature(KeystrokeDynamicsFeature, dict):
         for s in subfeatures:
             self[s.name]= s
     
+    @staticmethod
+    def getCommonFeatures( *features ):
+        '''Given N CompositeFeature, returns N CompositeFeature, such that
+        each outputed CompositeFeature has the same feature values of each 
+        input, but only for subfeatures common for all inputs'''
+        recursive= True
+        common_names= reduce(set.intersection, [set(f.keys()) for f in features])
+        def get_subfeatures( subfeature_name ):
+            subfeatures= [f[subfeature_name] for f in features]
+            is_composite= subfeatures and isinstance(subfeatures[0], CompositeFeature)
+            if recursive and is_composite:
+                subfeatures= CompositeFeature.getCommonFeatures(*subfeatures)
+            return subfeatures
+        all_subfeatures= zip(*map( get_subfeatures, common_names ))
+        return [CompositeFeature(f.name, subs) for f,subs in zip(features, all_subfeatures)]
+
+
     def __repr__(self):
         sep= "    "
         return "CompositeFeature( {} )".format( self.name )
