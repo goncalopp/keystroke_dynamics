@@ -1,8 +1,8 @@
+from ksdyn.features import KeyDwellTime, NormalFeature, CompositeFeature
+
 import numpy as np
 import matplotlib
 from matplotlib import pyplot
-
-from keystroke_dynamics import KeyDwellTime, NormalFeature, CompositeFeature
 
 def synthesize_data( normal_feature, n=10000 ):
     d= normal_feature.distribution

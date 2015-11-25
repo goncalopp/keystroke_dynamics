@@ -1,14 +1,18 @@
-import capture_keys
-from keystroke_dynamics import Fingerprint, KeystrokeCaptureData, FingerprintComparer
+from ksdyn.core import KeystrokeCaptureData
+from ksdyn.model import Fingerprint, FingerprintComparer
 
 DATA_DIR= "data/"
+
+
+example_text1='''Wikipedia is a free-access, free content Internet encyclopedia, supported and hosted by the non-profit Wikimedia Foundation. Those who can access the site and follow its rules can edit most of its articles. Wikipedia is ranked among the ten most popular websites and constitutes the Internet's largest and most popular general reference work.'''
 
 def get_some_keystrokes():
     print "Please write the following text. When you're finished, press Ctrl-C"
     print "------------------"
-    print open("text.txt").read().lower()
+    print example_text1
     data= KeystrokeCaptureData()
     try:
+        import capture_keys
         capture_keys.start(data.on_key)
     except KeyboardInterrupt:
         pass

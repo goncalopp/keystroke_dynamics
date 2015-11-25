@@ -1,6 +1,6 @@
-#!/usr/bin/python
-import pickle
-import numpy
+from ksdyn.core import KeypressEventReceiver
+
+import numpy as np
 from scipy.stats import norm
 from abc import ABCMeta, abstractmethod
 
@@ -10,8 +10,8 @@ class NormalDistribution(object):
 
     @classmethod
     def estimate( cls, samples ):
-        mean=   numpy.mean( samples )
-        stddev= numpy.std(samples) #TODO: use proper Normal stddev estimation formula
+        mean=   np.mean( samples )
+        stddev= np.std(samples) #TODO: use proper Normal stddev estimation formula
         dist= cls( mean, stddev )
         return dist
 
@@ -80,52 +80,7 @@ class KeyDwellTime( NormalFeature ):
     the time while a certain key is pressed.
     The "name" attribute of this feature is the key name'''
     pass
-
-class KeypressEventReceiver(object):
-    '''A class that receives keypress events through a callback'''
-    __metaclass__=ABCMeta
-    KEY_DOWN, KEY_UP= 0, 1
-    
-    @abstractmethod
-    def on_key(self, key, event_type, time_ms):
-        '''key is a integer
-        event_type is in (KEY_DOWN, KEY_UP)
-        time_ms is the time when the key was (de/)pressed
-        '''
-        pass
-
-class VersionedSerializableClass( object ):
-    __metaclass__=ABCMeta
-    FILE_EXTENSION=".pickle"
-    CLASS_VERSION= -1
-
-    def __init__(self, *args, **kwargs):
-        self._class_version= self.CLASS_VERSION
-    
-    def save_to_file(self, filename):
-        f= open(filename+self.FILE_EXTENSION, 'wb')
-        pickle.dump( self, f)
-        f.close()
-    
-    @classmethod
-    def load_from_file( cls, filename):
-        try:
-            f= open(filename, 'rb')
-        except Exception:
-            f=open(filename+cls.FILE_EXTENSION, 'rb')
-        instance= pickle.load(f)
-        f.close()
-
-        load_error=None
-        if not isinstance( instance, cls ):
-            load_error= 'Unexpected instance type'
-        elif instance._class_version!=cls.CLASS_VERSION:
-            load_error= 'Class version mismatch (expected "{}", got "{}")'.format( cls.CLASS_VERSION, instance._class_version)
-        if load_error:
-            raise TypeError("Failed to load serialized data from {}: {}".format(filename, load_error))
-
-        return instance
-
+ 
 class FeatureExtractor(KeypressEventReceiver):
     '''Extracts features from keypress data'''
     def __init__(self, timing_threshold=500):
@@ -170,75 +125,4 @@ class FeatureExtractor(KeypressEventReceiver):
         dwell_times= [KeyDwellTime(i, t) for i,t in enumerate(self.dwell_times) ]
         dwell_times= filter( feature_filter, dwell_times )
 
-        return CompositeFeature( "dwell_times", dwell_times )
-
-class KeystrokeCaptureData(KeypressEventReceiver, VersionedSerializableClass):
-    '''Recorded data of actual keystrokes pressed by a user'''
-    FILE_EXTENSION=".keypresses"
-    CLASS_VERSION= 0
-
-    def __init__(self):
-        VersionedSerializableClass.__init__(self)
-        self.log= []
-
-    def on_key(self, key, event_type, time_ms):
-        '''Append a keypress event to this capture data'''
-        self.log.append( (key, event_type, time_ms) )
-
-    def feed(self, event_receiver):
-        '''feeds this data into a KeypressEventReceiver.
-        Returns the event_receiver'''
-        for event in self.log:
-            event_receiver.on_key( *event )
-        return event_receiver
-
-class Fingerprint(VersionedSerializableClass):
-    FILE_EXTENSION=".fingerprint"
-    CLASS_VERSION= 1
-    def __init__(self, name, data ):
-        assert isinstance(data, CompositeFeature)
-        VersionedSerializableClass.__init__(self)
-        self.name= name
-        self.data= data
-    
-    def __repr__( self ):
-        return "Fingerprint( {} )".format( self.name )
-
-    @staticmethod
-    def create_from_capture_data( name, capture_data ):
-        assert isinstance( capture_data, KeystrokeCaptureData )
-        fe= FeatureExtractor()
-        capture_data.feed( fe )
-        features= fe.extract_features()
-        return Fingerprint( name, features )
-
-class FingerprintComparer(object):
-    def __init__(self, reducer=None):
-        self._reducer= reducer if reducer is not None else self._multiplication_reducer
-    
-    @staticmethod
-    def _multiplication_reducer( feature_similarities ):
-        return reduce( lambda a,b: a*b, feature_similarities )
-
-    @staticmethod
-    def _mean_reducer( feature_similarities ):
-        return numpy.mean( feature_similarities )
-    
-    def feature_similarity( self, f1, f2):
-        print "computing similarity for features:    {}    {}".format(f1, f2)
-        if type(f1)!=type(f1):
-            raise Exception("Can't compare features of different types ({}, {})".format(type(f1),type(f2)))
-        if f1.name!=f2.name:
-            print "Warning: comparing features with different names ({}, {}))".format(f1.name, f2.name)
-        if isinstance(f1, CompositeFeature):
-            common_features= set(f1.keys()) & set(f2.keys()) #intersection of sets
-            similarities= [self.feature_similarity( f1[k], f2[k] ) for k in common_features]
-            return self._reducer( similarities )
-        elif isinstance(f1, NormalFeature ):
-            return f1.distribution.similarity( f2.distribution )
-        else:
-            raise Exception("Unknown feature type: {}".format(type(f1)))
-
-    def fingerprint_similarity( self, f1, f2 ):
-        print "computing similarity for fingerprints:    {}    {}".format(f1, f2)
-        return self.feature_similarity( f1.data, f2.data )
+        return CompositeFeature( "dwell_times", dwell_times ) 
