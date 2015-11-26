@@ -4,16 +4,22 @@ import numpy as np
 from scipy.stats import norm
 from abc import ABCMeta, abstractmethod
 
-class NormalDistribution(object):
-    def __init__(self, mean=0.0, stddev=1.0):
-        self.mean, self.stddev= mean, stddev
+class InsufficientData(Exception):
+    pass
 
-    @classmethod
-    def estimate( cls, samples ):
+class NormalDistribution(object):
+    def __init__(self, mean=0.0, stddev=1.0, nsamples=None):
+        self.mean, self.stddev= mean, stddev
+        self.nsamples= nsamples
+
+    @staticmethod
+    def estimate_parameters( samples ):
+        nsamples= len(samples)
+        if nsamples<2:
+            raise InsufficientData()
         mean=   np.mean( samples )
         stddev= np.std(samples) #TODO: use proper Normal stddev estimation formula
-        dist= cls( mean, stddev )
-        return dist
+        return mean, stddev, nsamples
 
     def similarity( self, other_normal ):
         '''quick-and-dirty hack. don't take this too seriously'''
@@ -22,10 +28,10 @@ class NormalDistribution(object):
         return 2*norm.cdf(-difference/stddev)
 
     def __repr__(self):
-        return "Normal({:.2f}, {:.2f})".format( self.mean, self.stddev )
+        return "{}({:.2f}, {:.2f}, {})".format( self.__class__.__name__, self.mean, self.stddev, self.nsamples )
 
 class KeystrokeDynamicsFeature(object):
-    '''A feature (in the machine learning sense) of a given typist'''
+    '''A feature (in the mach ine learning sense) from a given typist'''
     __metaclass__=ABCMeta
 
     def __init__(self, name):
@@ -58,24 +64,13 @@ class CompositeFeature(KeystrokeDynamicsFeature, dict):
         return [CompositeFeature(f.name, subs) for f,subs in zip(features, all_subfeatures)]
 
 
-    def __repr__(self):
-        sep= "    "
-        return "CompositeFeature( {} )".format( self.name )
-
-class NormalFeature( KeystrokeDynamicsFeature ):
+class NormalFeature( KeystrokeDynamicsFeature, NormalDistribution ):
     '''A feature represented as a Normal distribution'''
     def __init__(self, name, samples):
         KeystrokeDynamicsFeature.__init__(self, name)
-        self.nsamples= len(samples)
-        if self.nsamples>1:
-            self.distribution= NormalDistribution.estimate( samples )
-        else:
-            self.distribution= None
-    
-    def __repr__(self):
-        return "NormalFeature({}, {})".format( self.nsamples, self.distribution )
+        NormalDistribution.__init__( self, *NormalDistribution.estimate_parameters( samples ) )
 
-class KeyDwellTime( NormalFeature ):
+class KeyDwellTimeDistribution( NormalFeature ):
     '''A feature representing (the probability distribution of)
     the time while a certain key is pressed.
     The "name" attribute of this feature is the key name'''
@@ -122,7 +117,7 @@ class FeatureExtractor(KeypressEventReceiver):
         snt = sample_number_threshold
         feature_filter= lambda f: f.nsamples>=snt 
 
-        dwell_times= [KeyDwellTime(i, t) for i,t in enumerate(self.dwell_times) ]
+        dwell_times= [KeyDwellTimeDistribution(i, t) for i,t in enumerate(self.dwell_times) if len(t)>1 ]
         dwell_times= filter( feature_filter, dwell_times )
 
         return CompositeFeature( "dwell_times", dwell_times ) 

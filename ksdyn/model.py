@@ -46,7 +46,7 @@ class FingerprintComparer(object):
             similarities= [self.feature_similarity( f1[k], f2[k] ) for k in common_features]
             return self._reducer( similarities )
         elif isinstance(f1, NormalFeature ):
-            return f1.distribution.similarity( f2.distribution )
+            return f1.similarity( f2 )
         else:
             raise Exception("Unknown feature type: {}".format(type(f1)))
 

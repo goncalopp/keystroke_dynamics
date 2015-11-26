@@ -1,23 +1,23 @@
-from ksdyn.features import KeyDwellTime, NormalFeature, CompositeFeature
+from ksdyn.features import KeyDwellTimeDistribution, NormalFeature, CompositeFeature
 
 import numpy as np
 import matplotlib
 from matplotlib import pyplot
 
 def synthesize_data( normal_feature, n=10000 ):
-    d= normal_feature.distribution
+    d= normal_feature
     return np.random.normal( loc= d.mean, scale=d.stddev, size=normal_feature.nsamples)
 
 def normal_to_bar( normal_feature ):
     '''returns bottom and top of a bar'''
-    dis= normal_feature.distribution
-    delta= dis.stddev * 2
-    return dis.mean-delta, dis.mean+delta
+    d= normal_feature
+    delta= d.stddev * 2
+    return d.mean-delta, d.mean+delta
 
 def visualize_normal_composite( composite, color='blue', offset=0.0, width=0.8, show=True ):
     '''visualizes a composite key composed of normal features'''
     key_list= [composite[k] for k in sorted(composite.keys())]
-    assert all( [isinstance( key, KeyDwellTime ) for key in key_list])
+    assert all( [isinstance( key, KeyDwellTimeDistribution ) for key in key_list])
     heights, bottoms= zip(*map(normal_to_bar, key_list))
     labels= [ k.name for k in key_list ]
 
