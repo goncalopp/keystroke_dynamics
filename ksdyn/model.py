@@ -1,55 +1,104 @@
-from ksdyn.core import VersionedSerializableClass, KeystrokeCaptureData
-from features import FeatureExtractor, CompositeFeature, NormalFeature
+from ksdyn.core import VersionedSerializableClass, GaussianDistribution, KeystrokeCaptureData, Named, DictTree, InsufficientData
+from features import FeatureExtractor, CompositeFeature, RealNumberSeq
 
 import numpy as np
+from abc import ABCMeta, abstractmethod
 
-class Fingerprint(VersionedSerializableClass):
-    FILE_EXTENSION=".fingerprint"
-    CLASS_VERSION= 1
-    def __init__(self, name, data ):
-        assert isinstance(data, CompositeFeature)
-        VersionedSerializableClass.__init__(self)
-        self.name= name
-        self.data= data
+class Model(Named):
+    '''A model (in the machine learning sense).'''
+    __metaclass__=ABCMeta
+
+    @abstractmethod
+    def fit( self, data, labels=None ):
+        '''makes the model fit some data (i.e.: trains the model)'''
+        pass
+
+    @abstractmethod
+    def activate(self, data):
+        '''given some data, outputs model predictions'''
+        pass
+    
+    @classmethod
+    def from_features(cls, name, data):
+        m= cls(name)
+        m.fit(data)
+        return m
     
     def __repr__( self ):
-        return "Fingerprint( {} )".format( self.name )
+        return "{}( {} )".format( self.__class__.__name__, self.name )
 
-    @staticmethod
-    def create_from_capture_data( name, capture_data ):
-        assert isinstance( capture_data, KeystrokeCaptureData )
-        fe= FeatureExtractor()
-        capture_data.feed( fe )
-        features= fe.extract_features()
-        return Fingerprint( name, features )
+
+class CompositeModel(DictTree, Model):
+    '''A model composed of multiple sub-models'''
+    pass
+
+class GaussianAnomalyModel( Model, GaussianDistribution ):
+    '''A anomaly detection model using a Gaussian distribution'''
+    def fit( self, data, labels=None ):
+        '''data must be a iterable of real numbers. '''
+        if labels is not None:
+            raise NotImplementedError( "Don't provide labels - all data should represent non-anomalies")
+        parameters= GaussianDistribution.estimate_parameters( data )
+        GaussianDistribution.__init__( self, *parameters )
+
+    def activate(self, data):
+        raise NotImplementedError
+
+class KeyDwellTime( GaussianAnomalyModel ):
+    '''A model representing (the probability distribution of)
+    the time while a certain keyboard key is pressed.
+    The "name" attribute of this feature is the key name'''
+    pass
+
+class Fingerprint(CompositeModel, VersionedSerializableClass):
+    '''A model that models many different aspects of a given typist,
+    thus being able to uniquely identify them'''
+    FILE_EXTENSION=".fingerprint"
+    CLASS_VERSION= 1
+    def __init__(self, name):
+        '''Name argument is the typist's name'''
+        VersionedSerializableClass.__init__(self)
+        CompositeModel.__init__(self, name)
+
+    def fit( self, data, labels=None ):
+        def feature_map(*features):
+            assert len(features)==1
+            f= features[0]
+            try:
+                if isinstance( f, RealNumberSeq ):
+                    return GaussianAnomalyModel.from_features( f.name, f.data )
+                else:
+                    raise Exception("Unknown feature: {}".format(f))
+            except InsufficientData:
+                return self.IGNORE_CHILD
+        assert isinstance( data, CompositeFeature)
+        newmodel= DictTree.map( feature_map, data)
+        self.clear()
+        self.update( newmodel )
+
 
 class FingerprintComparer(object):
     def __init__(self, reducer=None):
-        self._reducer= reducer if reducer is not None else self._multiplication_reducer
-    
+        self._reducer= reducer or self._multiplication_reducer
+
     @staticmethod
     def _multiplication_reducer( feature_similarities ):
-        return reduce( lambda a,b: a*b, feature_similarities )
+        return feature_similarities.reduce( lambda a,b: a*b )
 
     @staticmethod
     def _mean_reducer( feature_similarities ):
-        return np.mean( feature_similarities )
-    
-    def feature_similarity( self, f1, f2):
-        print "computing similarity for features:    {}    {}".format(f1, f2)
-        if type(f1)!=type(f1):
-            raise Exception("Can't compare features of different types ({}, {})".format(type(f1),type(f2)))
-        if f1.name!=f2.name:
-            print "Warning: comparing features with different names ({}, {}))".format(f1.name, f2.name)
-        if isinstance(f1, CompositeFeature):
-            common_features= set(f1.keys()) & set(f2.keys()) #intersection of sets
-            similarities= [self.feature_similarity( f1[k], f2[k] ) for k in common_features]
-            return self._reducer( similarities )
-        elif isinstance(f1, NormalFeature ):
-            return f1.similarity( f2 )
-        else:
-            raise Exception("Unknown feature type: {}".format(type(f1)))
+        score_tree= feature_similarities.map( lambda x: (1,x.score) )
+        summed= score_tree.reduce( lambda (na,sa),(nb,sb): (na+nb), (sa+sb))
+        return summed[1]/summed[0]
+
+    def model_similarity( self, f1, f2):
+        f1,f2= DictTree.intersect( f1, f2 )
+        def feature_map(*features):
+            f1,f2= features
+            return f1.similarity(f2)
+        similarities= DictTree.map( feature_map, f1, f2 )
+        return self._reducer( similarities )
 
     def fingerprint_similarity( self, f1, f2 ):
         print "computing similarity for fingerprints:    {}    {}".format(f1, f2)
-        return self.feature_similarity( f1.data, f2.data ) 
+        return self.model_similarity( f1, f2 ) 

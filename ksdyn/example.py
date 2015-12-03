@@ -1,5 +1,8 @@
+from functools import partial
+
 from ksdyn.core import KeystrokeCaptureData
 from ksdyn.model import Fingerprint, FingerprintComparer
+from ksdyn.sugar import create_model_from_capture_data
 
 DATA_DIR= "data/"
 
@@ -23,7 +26,7 @@ def create_fingerprint():
     username= raw_input("what's your name? ")
     data= get_some_keystrokes()
     data.save_to_file( DATA_DIR+username )
-    fingerprint= Fingerprint.create_from_capture_data( username, data )
+    fingerprint= create_model_from_capture_data( username, data )
     fingerprint.save_to_file( DATA_DIR+username )
     print "Finished creating fingerprint!"
 
@@ -37,11 +40,14 @@ def get_all_fingerprints():
 
 def match_fingerprint():
     data= get_some_keystrokes()
-    data_fingerprint= Fingerprint.create_from_capture_data( "NoName", data )
+    data_fingerprint= create_model_from_capture_data( "NoName", data )
     fc= FingerprintComparer()
     all_fingerprints= get_all_fingerprints()
-    similarities= [fc.fingerprint_similarity( data_fingerprint, f ) for f in all_fingerprints]
-    print "Best match: ", all_fingerprints[similarities.index(max(similarities))].name
+    score_f= partial(fc.fingerprint_similarity, data_fingerprint)
+    scores= map(score_f, all_fingerprints)
+    for f, score in zip(all_fingerprints, scores):
+        print "Score for {}: {}".format(f.name, score)
+    print "Best match: ", all_fingerprints[scores.index(max(scores))].name
 
 if __name__=='__main__':
     print "Choose an option:\n  1) create new fingerprint\n  2) match text to a existing fingerprint"
