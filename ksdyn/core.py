@@ -25,18 +25,16 @@ class VersionedSerializableClass( object ):
         self._class_version= self.CLASS_VERSION
     
     def save_to_file(self, filename):
-        f= open(filename+self.FILE_EXTENSION, 'wb')
-        pickle.dump( self, f)
-        f.close()
-    
+        with open(filename+self.FILE_EXTENSION, 'wb') as f:
+            self._serialize_to_file( f )
+
     @classmethod
     def load_from_file( cls, filename):
-        try:
-            f= open(filename, 'rb')
-        except Exception:
-            f=open(filename+cls.FILE_EXTENSION, 'rb')
-        instance= pickle.load(f)
-        f.close()
+        import os
+        if not os.path.exists(filename):
+            filename+=cls.FILE_EXTENSION
+        with open(filename, 'rb') as f:
+            instance= cls._deserialize_from_file( f )
 
         load_error=None
         if not isinstance( instance, cls ):
@@ -47,15 +45,23 @@ class VersionedSerializableClass( object ):
             raise TypeError("Failed to load serialized data from {}: {}".format(filename, load_error))
 
         return instance
+
+    def _serialize_to_file( self, f ):
+        pickle.dump(self, f)
+
+    @classmethod
+    def _deserialize_from_file( cls, f ):
+         return pickle.load(f)
+
  
 class KeystrokeCaptureData(KeypressEventReceiver, VersionedSerializableClass):
     '''Recorded data of actual keystrokes pressed by a user'''
     FILE_EXTENSION=".keypresses"
     CLASS_VERSION= 0
 
-    def __init__(self):
+    def __init__(self, existing_data=None):
         VersionedSerializableClass.__init__(self)
-        self.log= []
+        self.log= list(existing_data) if existing_data else []
 
     def on_key(self, key, event_type, time_ms):
         '''Append a keypress event to this capture data'''
@@ -67,6 +73,15 @@ class KeystrokeCaptureData(KeypressEventReceiver, VersionedSerializableClass):
         for event in self.log:
             event_receiver.on_key( *event )
         return event_receiver
+
+    def _serialize_to_file( self, f ):
+        f.write( str(self.log) )
+
+    @classmethod
+    def _deserialize_from_file( self, f ):
+        from ast import literal_eval
+        data= literal_eval(f.read())
+        return KeystrokeCaptureData(data)
 
 class InsufficientData(ValueError):
     '''Raised when there is insuficient data to perform a given operation.
