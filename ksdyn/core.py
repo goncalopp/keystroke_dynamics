@@ -108,6 +108,11 @@ class GaussianDistribution(object):
         difference= abs(self.mean - other_normal.mean)
         return 2*scipy.stats.norm.cdf(-difference/stddev)
 
+    def similarity_number( self, number ):
+        stddev= self.stddev
+        difference= abs(self.mean - number)
+        return 2*scipy.stats.norm.cdf(-difference/stddev)
+
     def __repr__(self):
         return "{}({:.2f}, {:.2f}, {})".format( self.__class__.__name__, self.mean, self.stddev, self.nsamples )
     

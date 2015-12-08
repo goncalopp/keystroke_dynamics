@@ -1,5 +1,5 @@
 from ksdyn.core import VersionedSerializableClass, GaussianDistribution, KeystrokeCaptureData, Named, DictTree, InsufficientData
-from features import FeatureExtractor, CompositeFeature, RealNumberSeq
+from features import FeatureExtractor, CompositeFeature, FloatSeq
 
 import numpy as np
 from abc import ABCMeta, abstractmethod
@@ -14,7 +14,7 @@ class Model(Named):
         pass
 
     @abstractmethod
-    def activate(self, data):
+    def predict(self, data):
         '''given some data, outputs model predictions'''
         pass
     
@@ -35,14 +35,15 @@ class CompositeModel(DictTree, Model):
 class GaussianAnomalyModel( Model, GaussianDistribution ):
     '''A anomaly detection model using a Gaussian distribution'''
     def fit( self, data, labels=None ):
-        '''data must be a iterable of real numbers. '''
+        '''data must be a iterable of numbers. '''
         if labels is not None:
             raise NotImplementedError( "Don't provide labels - all data should represent non-anomalies")
         parameters= GaussianDistribution.estimate_parameters( data )
         GaussianDistribution.__init__( self, *parameters )
 
-    def activate(self, data):
-        raise NotImplementedError
+    def predict(self, data):
+        '''data must be a iterable of numbers'''
+        return map(self.similarity_number, data )
 
 class KeyDwellTime( GaussianAnomalyModel ):
     '''A model representing (the probability distribution of)
@@ -65,7 +66,7 @@ class Fingerprint(CompositeModel, VersionedSerializableClass):
             assert len(features)==1
             f= features[0]
             try:
-                if isinstance( f, RealNumberSeq ):
+                if isinstance( f, FloatSeq ):
                     return GaussianAnomalyModel.from_features( f.name, f.data )
                 else:
                     raise Exception("Unknown feature: {}".format(f))
@@ -75,7 +76,6 @@ class Fingerprint(CompositeModel, VersionedSerializableClass):
         newmodel= DictTree.map( feature_map, data)
         self.clear()
         self.update( newmodel )
-
 
 class FingerprintComparer(object):
     def __init__(self, reducer=None):
@@ -91,14 +91,45 @@ class FingerprintComparer(object):
         summed= score_tree.reduce( lambda (na,sa),(nb,sb): (na+nb), (sa+sb))
         return summed[1]/summed[0]
 
-    def model_similarity( self, f1, f2):
+    def _fingerprint_similarity( self, f1, f2 ):
+        print "computing similarity for fingerprints:    {}    {}".format(f1, f2)
         f1,f2= DictTree.intersect( f1, f2 )
         def feature_map(*features):
             f1,f2= features
             return f1.similarity(f2)
         similarities= DictTree.map( feature_map, f1, f2 )
-        return self._reducer( similarities )
+        return self._reducer( similarities )   
 
-    def fingerprint_similarity( self, f1, f2 ):
-        print "computing similarity for fingerprints:    {}    {}".format(f1, f2)
-        return self.model_similarity( f1, f2 ) 
+    def similarity(self, f1, x):
+        assert isinstance(f1, Fingerprint)
+        if isinstance(x, Fingerprint):
+            return self._fingerprint_similarity( f1, x )
+        else: #assume x is a feature
+            raise NotImplementedError
+
+class FingerprintDatabase(object):
+    def __init__(self, fingerprints=[], comparer=None):
+        comparer= comparer or FingerprintComparer()
+        self.fingerprints= fingerprints
+        self.comparer= comparer
+
+    def score( self, data ):
+        return [self.comparer.similarity( f, data ) for f in self.fingerprints]
+
+    def best_match( self, data ):
+        if len(self.fingerprints)==0:
+            raise Exception("No fingerprints available for matching")
+        scores= self.score(data)
+        for f,score in zip(self.fingerprints, scores):
+            print "Score for {}: {}".format(f.name, score)
+        best_i= scores.index(max(scores))
+        best= self.fingerprints[best_i]
+        return best
+
+    def load_from_dir( self, directory ):
+        import os
+        d= directory
+        files= [os.path.join(d,f) for f in os.listdir(d) if f.endswith(Fingerprint.FILE_EXTENSION)]
+        fingerprints= map( Fingerprint.load_from_file, files)
+        self.fingerprints.extend( fingerprints )
+        return self

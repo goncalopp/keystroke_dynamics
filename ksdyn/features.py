@@ -13,13 +13,13 @@ class CompositeFeature(DictTree, Feature):
     '''A feature composed of multiple sub-features'''
     pass
 
-class RealNumberSeq(Feature):
+class FloatSeq(Feature):
     '''A sequence of real numbers'''
     def __init__(self, name, data):
         Feature.__init__(self, name)
         self.data= data
 
-class KeyDwellTimes( RealNumberSeq ):
+class KeyDwellTimes( FloatSeq ):
     '''A sequence of times time while a certain keyboard key is pressed.
     The "name" attribute of this feature is the key name'''
     pass
