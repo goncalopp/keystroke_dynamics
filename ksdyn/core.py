@@ -100,11 +100,12 @@ class GaussianDistribution(object):
             raise InsufficientData()
         mean=   np.mean( samples )
         stddev= np.std(samples) #TODO: use proper Normal stddev estimation formula
+        stddev= max( mean*0.01, stddev ) #avoid stddev==0
         return mean, stddev, nsamples
 
     def similarity( self, other_normal ):
         '''quick-and-dirty hack. don't take this too seriously'''
-        stddev= other_normal.stddev
+        stddev= (self.stddev + other_normal.stddev) / 2.0
         difference= abs(self.mean - other_normal.mean)
         return 2*scipy.stats.norm.cdf(-difference/stddev)
 
