@@ -127,9 +127,5 @@ class FingerprintDatabase(object):
         return best
 
     def load_from_dir( self, directory ):
-        import os
-        d= directory
-        files= [os.path.join(d,f) for f in os.listdir(d) if f.endswith(Fingerprint.FILE_EXTENSION)]
-        fingerprints= map( Fingerprint.load_from_file, files)
-        self.fingerprints.extend( fingerprints )
+        self.fingerprints.extend( Fingerprint.load_from_dir(directory).values() )
         return self

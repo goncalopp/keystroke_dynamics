@@ -46,6 +46,16 @@ class VersionedSerializableClass( object ):
 
         return instance
 
+    @classmethod
+    def load_from_dir( cls, directory ):
+        import os
+        d= directory
+        filenames= [f for f in os.listdir(d) if f.endswith(cls.FILE_EXTENSION)]
+        path_names= [os.path.join(d,f) for f in filenames]
+        bare_names= [fn.rstrip(cls.FILE_EXTENSION) for fn in filenames] #without extension
+        instances= map( cls.load_from_file, path_names)
+        return dict(zip(bare_names, instances))
+
     def _serialize_to_file( self, f ):
         pickle.dump(self, f)
 
